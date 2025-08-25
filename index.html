@@ -15,7 +15,7 @@
       border: 1px solid #444;
       padding: 15px;
       border-radius: 8px;
-      min-height: 200px;
+      min-height: 250px;
       overflow-y: auto;
     }
     .prompt { color: #4ec9b0; }
@@ -28,7 +28,7 @@
       font-size: 14px;
       outline: none;
     }
-    .output { margin: 5px 0; }
+    .output { margin: 5px 0; white-space: pre; }
     .error { color: #f44747; }
     .success { color: #569cd6; }
   </style>
@@ -48,12 +48,13 @@
     const consoleDiv = document.getElementById("console");
     const input = document.getElementById("commandInput");
 
-    // Paraméterek tárolása
-    let parameters = {
+    // Paraméterek két helyen: memory + spfile
+    let parametersMemory = {
       sga_target: "2048M",
       pga_aggregate_target: "1024M",
       workarea_size_policy: "MANUAL"
     };
+    let parametersSpfile = { ...parametersMemory };
 
     function addOutput(text, type="success") {
       const div = document.createElement("div");
@@ -63,21 +64,39 @@
       consoleDiv.scrollTop = consoleDiv.scrollHeight;
     }
 
+    function showParameters(filter, source="memory") {
+      const params = source === "spfile" ? parametersSpfile : parametersMemory;
+      addOutput("NAME                 TYPE        VALUE", "success");
+      Object.entries(params).forEach(([key, val]) => {
+        if (!filter || key.includes(filter.toLowerCase())) {
+          addOutput(key.padEnd(20) + " string      " + val, "success");
+        }
+      });
+    }
+
     input.addEventListener("keydown", function(e) {
       if (e.key === "Enter") {
         const cmd = input.value.trim();
         addOutput("SQL> " + cmd, "prompt");
 
-        // ALTER SYSTEM SET <param>=<value>;
-        const alterSystemRegex = /^alter\s+system\s+set\s+(\w+)\s*=\s*([^\s;]+);?$/i;
+        // Regexek
+        const alterSystemRegex = /^alter\s+system\s+set\s+(\w+)\s*=\s*([^\s;]+)(?:\s+scope\s*=\s*(memory|spfile))?;?$/i;
         const alterSessionRegex = /^alter\s+session\s+set\s+(\w+)\s*=\s*([^\s;]+);?$/i;
         const showParamRegex = /^show\s+parameter\s*(\w*)$/i;
+        const selectParamRegex = /^select\s+\*\s+from\s+v\$(parameter|spparameter);?$/i;
 
         if (alterSystemRegex.test(cmd)) {
-          const [, param, value] = cmd.match(alterSystemRegex);
+          const [, param, value, scope] = cmd.match(alterSystemRegex);
           const pname = param.toLowerCase();
-          if (parameters.hasOwnProperty(pname)) {
-            parameters[pname] = value;
+          if (parametersMemory.hasOwnProperty(pname)) {
+            if (!scope) {
+              parametersMemory[pname] = value;
+              parametersSpfile[pname] = value;
+            } else if (scope.toLowerCase() === "memory") {
+              parametersMemory[pname] = value;
+            } else if (scope.toLowerCase() === "spfile") {
+              parametersSpfile[pname] = value;
+            }
             addOutput("System altered.", "success");
           } else {
             addOutput(`ORA-02000: missing or invalid parameter '${param}'`, "error");
@@ -85,23 +104,22 @@
         } else if (alterSessionRegex.test(cmd)) {
           const [, param, value] = cmd.match(alterSessionRegex);
           const pname = param.toLowerCase();
-          if (parameters.hasOwnProperty(pname)) {
-            parameters[pname] = value;
+          if (parametersMemory.hasOwnProperty(pname)) {
+            parametersMemory[pname] = value;
             addOutput("Session altered.", "success");
           } else {
             addOutput(`ORA-02000: missing or invalid parameter '${param}'`, "error");
           }
         } else if (showParamRegex.test(cmd)) {
           const [, filter] = cmd.match(showParamRegex);
-          addOutput("NAME                 TYPE        VALUE", "success");
-          Object.entries(parameters).forEach(([key, val]) => {
-            if (!filter || key.includes(filter.toLowerCase())) {
-              addOutput(
-                key.padEnd(20) + " string      " + val,
-                "success"
-              );
-            }
-          });
+          showParameters(filter, "memory");
+        } else if (selectParamRegex.test(cmd)) {
+          const [, which] = cmd.match(selectParamRegex);
+          if (which.toLowerCase() === "parameter") {
+            showParameters("", "memory");
+          } else {
+            showParameters("", "spfile");
+          }
         } else if (cmd.toLowerCase() === "exit") {
           addOutput("Disconnected from Oracle Database.", "success");
         } else {
