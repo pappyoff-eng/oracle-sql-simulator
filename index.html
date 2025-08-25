@@ -80,10 +80,18 @@
         addOutput("SQL> " + cmd, "prompt");
 
         // Regexek
-        const alterSystemRegex = /^alter\s+system\s+set\s+(\w+)\s*=\s*([^\s;]+)(?:\s+scope\s*=\s*(memory|spfile))?;?$/i;
-        const alterSessionRegex = /^alter\s+session\s+set\s+(\w+)\s*=\s*([^\s;]+);?$/i;
-        const showParamRegex = /^show\s+parameter\s*(\w*)$/i;
-        const selectParamRegex = /^select\s+\*\s+from\s+v\$(parameter|spparameter);?$/i;
+// ALTER SYSTEM
+const alterSystemRegex = /^alter\s+system\s+set\s+(\w+)\s*=\s*([^\s;]+)(?:\s+scope\s*=\s*(memory|spfile))?\s*;?$/i;
+
+// ALTER SESSION
+const alterSessionRegex = /^alter\s+session\s+set\s+(\w+)\s*=\s*([^\s;]+)\s*;?$/i;
+
+// SHOW PARAMETER
+const showParamRegex = /^show\s+parameter\s*(\w*)$/i;
+
+// SELECT * FROM v$parameter vagy v$spparameter
+const selectParamRegex = /^select\s+\*\s+from\s+v\$(parameter|spparameter)\s*;?$/i;
+
 
         if (alterSystemRegex.test(cmd)) {
           const [, param, value, scope] = cmd.match(alterSystemRegex);
