@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Oracle SQL Simulator</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #1e1e1e;
+      color: #dcdcdc;
+      padding: 20px;
+    }
+    #console {
+      background: #111;
+      border: 1px solid #444;
+      padding: 15px;
+      border-radius: 8px;
+      min-height: 200px;
+      overflow-y: auto;
+    }
+    .prompt { color: #4ec9b0; }
+    input {
+      width: 100%;
+      background: #1e1e1e;
+      color: #fff;
+      border: none;
+      font-family: monospace;
+      font-size: 14px;
+      outline: none;
+    }
+    .output { margin: 5px 0; }
+    .error { color: #f44747; }
+    .success { color: #569cd6; }
+  </style>
+</head>
+<body>
+  <h3>Oracle SQL Simulator</h3>
+  <div id="console">
+    <div class="output">Oracle Database 19c - SQL*Plus simulator</div>
+    <div class="output">Connected to: ORACLE DEMO</div>
+  </div>
+  <div>
+    <span class="prompt">SQL&gt;</span>
+    <input type="text" id="commandInput" placeholder="Type your SQL command here...">
+  </div>
+
+  <script>
+    const consoleDiv = document.getElementById("console");
+    const input = document.getElementById("commandInput");
+
+    // Paraméterek tárolása
+    let parameters = {
+      sga_target: "2048M",
+      pga_aggregate_target: "1024M",
+      workarea_size_policy: "MANUAL"
+    };
+
+    function addOutput(text, type="success") {
+      const div = document.createElement("div");
+      div.className = "output " + type;
+      div.textContent = text;
+      consoleDiv.appendChild(div);
+      consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    }
+
+    input.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") {
+        const cmd = input.value.trim();
+        addOutput("SQL> " + cmd, "prompt");
+
+        // ALTER SYSTEM SET <param>=<value>;
+        const alterSystemRegex = /^alter\s+system\s+set\s+(\w+)\s*=\s*([^\s;]+);?$/i;
+        const alterSessionRegex = /^alter\s+session\s+set\s+(\w+)\s*=\s*([^\s;]+);?$/i;
+        const showParamRegex = /^show\s+parameter\s*(\w*)$/i;
+
+        if (alterSystemRegex.test(cmd)) {
+          const [, param, value] = cmd.match(alterSystemRegex);
+          const pname = param.toLowerCase();
+          if (parameters.hasOwnProperty(pname)) {
+            parameters[pname] = value;
+            addOutput("System altered.", "success");
+          } else {
+            addOutput(`ORA-02000: missing or invalid parameter '${param}'`, "error");
+          }
+        } else if (alterSessionRegex.test(cmd)) {
+          const [, param, value] = cmd.match(alterSessionRegex);
+          const pname = param.toLowerCase();
+          if (parameters.hasOwnProperty(pname)) {
+            parameters[pname] = value;
+            addOutput("Session altered.", "success");
+          } else {
+            addOutput(`ORA-02000: missing or invalid parameter '${param}'`, "error");
+          }
+        } else if (showParamRegex.test(cmd)) {
+          const [, filter] = cmd.match(showParamRegex);
+          addOutput("NAME                 TYPE        VALUE", "success");
+          Object.entries(parameters).forEach(([key, val]) => {
+            if (!filter || key.includes(filter.toLowerCase())) {
+              addOutput(
+                key.padEnd(20) + " string      " + val,
+                "success"
+              );
+            }
+          });
+        } else if (cmd.toLowerCase() === "exit") {
+          addOutput("Disconnected from Oracle Database.", "success");
+        } else {
+          addOutput("ORA-00900: invalid SQL statement", "error");
+        }
+
+        input.value = "";
+      }
+    });
+  </script>
+</body>
+</html>
